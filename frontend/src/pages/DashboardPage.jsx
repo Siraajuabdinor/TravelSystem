@@ -3,31 +3,21 @@ import {
   ArrowDownRight,
   ArrowUpRight,
   Building2,
+  CalendarCheck,
   Map,
   MoreVertical,
+  Navigation,
   Truck,
+  UserCheck,
   Users,
 } from 'lucide-react';
 import { citiesService } from '../services/citiesService';
 import { vehiclesService } from '../services/vehiclesService';
 import { routesService } from '../services/routesService';
-
-const summaryCards = [
-  {
-    key: 'cities',
-    title: 'Cities',
-    accent: 'up',
-    change: '+11.01%',
-    icon: Users,
-  },
-  {
-    key: 'vehicles',
-    title: 'Vehicles',
-    icon: Truck,
-    accent: 'down',
-    change: '+9.05%',
-  },
-];
+import { bookingsService } from '../services/bookingsService';
+import { tripsService } from '../services/tripsService';
+import { driversService } from '../services/driversService';
+import { usersService } from '../services/usersService';
 
 const monthlySales = [
   { month: 'Jan', value: 160 },
@@ -45,7 +35,15 @@ const monthlySales = [
 ];
 
 export default function DashboardPage() {
-  const [counts, setCounts] = useState({ cities: 0, vehicles: 0, routes: 0 });
+  const [counts, setCounts] = useState({
+    cities: 0,
+    vehicles: 0,
+    routes: 0,
+    bookings: 0,
+    trips: 0,
+    drivers: 0,
+    users: 0,
+  });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -55,16 +53,30 @@ export default function DashboardPage() {
       setError('');
 
       try {
-        const [cities, vehicles, routes] = await Promise.all([
-          citiesService.list(),
-          vehiclesService.list(),
-          routesService.list(),
-        ]);
+        const [cities, vehicles, routes, bookings, trips, drivers, users] =
+          await Promise.allSettled([
+            citiesService.list(),
+            vehiclesService.list(),
+            routesService.list(),
+            bookingsService.list(),
+            tripsService.list(),
+            driversService.list(),
+            usersService.list(),
+          ]);
+
+        const safeCount = (result) =>
+          result.status === 'fulfilled' && Array.isArray(result.value)
+            ? result.value.length
+            : 0;
 
         setCounts({
-          cities: Array.isArray(cities) ? cities.length : 0,
-          vehicles: Array.isArray(vehicles) ? vehicles.length : 0,
-          routes: Array.isArray(routes) ? routes.length : 0,
+          cities: safeCount(cities),
+          vehicles: safeCount(vehicles),
+          routes: safeCount(routes),
+          bookings: safeCount(bookings),
+          trips: safeCount(trips),
+          drivers: safeCount(drivers),
+          users: safeCount(users),
         });
       } catch (dashboardError) {
         setError(dashboardError.message);
@@ -77,13 +89,76 @@ export default function DashboardPage() {
   }, []);
 
   const progress = useMemo(() => {
-    if (!counts.vehicles) {
-      return 75.55;
-    }
-
+    if (!counts.vehicles) return 75.55;
     const value = (counts.routes / counts.vehicles) * 100;
     return Number(Math.min(96, Math.max(24, value)).toFixed(2));
   }, [counts.routes, counts.vehicles]);
+
+  const summaryCards = [
+    {
+      key: 'bookings',
+      title: 'Bookings',
+      accent: 'up',
+      change: '+8.20%',
+      icon: CalendarCheck,
+      color: '#eef4ff',
+      iconColor: '#465fff',
+    },
+    {
+      key: 'trips',
+      title: 'Trips',
+      accent: 'up',
+      change: '+5.10%',
+      icon: Navigation,
+      color: '#f4f3ff',
+      iconColor: '#7a5af8',
+    },
+    {
+      key: 'drivers',
+      title: 'Drivers',
+      accent: 'up',
+      change: '+3.40%',
+      icon: UserCheck,
+      color: '#ecfdf3',
+      iconColor: '#12b76a',
+    },
+    {
+      key: 'users',
+      title: 'Users',
+      accent: 'up',
+      change: '+11.01%',
+      icon: Users,
+      color: '#fff7ed',
+      iconColor: '#f79009',
+    },
+    {
+      key: 'vehicles',
+      title: 'Vehicles',
+      accent: 'down',
+      change: '+9.05%',
+      icon: Truck,
+      color: '#fef3f2',
+      iconColor: '#f04438',
+    },
+    {
+      key: 'routes',
+      title: 'Routes',
+      accent: 'up',
+      change: '+6.70%',
+      icon: Map,
+      color: '#eef2ff',
+      iconColor: '#3538cd',
+    },
+    {
+      key: 'cities',
+      title: 'Cities',
+      accent: 'up',
+      change: '+2.90%',
+      icon: Building2,
+      color: '#f0fdf4',
+      iconColor: '#16a34a',
+    },
+  ];
 
   const statsTiles = [
     {
@@ -97,8 +172,8 @@ export default function DashboardPage() {
       trend: 'up',
     },
     {
-      label: 'Today',
-      value: loading ? '...' : `$${(counts.vehicles * 1000).toLocaleString()}`,
+      label: 'Revenue',
+      value: loading ? '...' : `$${(counts.bookings * 150).toLocaleString()}`,
       trend: 'up',
     },
   ];
@@ -111,36 +186,99 @@ export default function DashboardPage() {
     <div className="dashboard-stack">
       {error && <div className="form-message error">{error}</div>}
 
+      {/* ── SUMMARY REPORT CARDS ── */}
+      <section style={{ marginBottom: '8px' }}>
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))',
+            gap: '16px',
+            marginBottom: '0',
+          }}
+        >
+          {summaryCards.map((card) => {
+            const SummaryIcon = card.icon;
+            return (
+              <article
+                key={card.key}
+                className="dashboard-card summary-card"
+                style={{
+                  minHeight: '140px',
+                  padding: '20px',
+                  transition: 'transform 0.2s ease, box-shadow 0.2s ease',
+                  cursor: 'default',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.transform = 'translateY(-3px)';
+                  e.currentTarget.style.boxShadow =
+                    '0 16px 40px rgba(16,24,40,0.10)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transform = 'translateY(0)';
+                  e.currentTarget.style.boxShadow = '';
+                }}
+              >
+                <div
+                  className="summary-icon"
+                  style={{
+                    background: card.color,
+                    color: card.iconColor,
+                    width: '40px',
+                    height: '40px',
+                    borderRadius: '12px',
+                  }}
+                >
+                  <SummaryIcon size={18} />
+                </div>
+                <p className="summary-label" style={{ marginTop: '14px' }}>
+                  {card.title}
+                </p>
+                <div className="summary-value">
+                  {loading ? (
+                    <span
+                      style={{
+                        display: 'inline-block',
+                        width: '48px',
+                        height: '28px',
+                        borderRadius: '8px',
+                        background: '#f2f4f7',
+                        animation: 'pulse 1.4s ease infinite',
+                      }}
+                    />
+                  ) : (
+                    counts[card.key].toLocaleString()
+                  )}
+                </div>
+                <div className={`summary-trend ${card.accent}`}>
+                  {card.accent === 'up' ? (
+                    <ArrowUpRight size={14} />
+                  ) : (
+                    <ArrowDownRight size={14} />
+                  )}
+                  <span>{card.change}</span>
+                </div>
+              </article>
+            );
+          })}
+        </div>
+      </section>
+
+      {/* ── CHARTS & DETAILS ── */}
       <section className="dashboard-shell">
         <div className="dashboard-grid">
           <div className="dashboard-primary">
-            <div className="dashboard-summary-grid">
-              {summaryCards.map((card) => {
-                const SummaryIcon = card.icon;
-
-                return (
-                <article key={card.key} className="dashboard-card summary-card">
-                  <div className="summary-icon">
-                    <SummaryIcon size={18} />
-                  </div>
-                  <p className="summary-label">{card.title}</p>
-                  <div className="summary-value">{loading ? '...' : counts[card.key].toLocaleString()}</div>
-                  <div className={`summary-trend ${card.accent}`}>
-                    {card.accent === 'up' ? <ArrowUpRight size={14} /> : <ArrowDownRight size={14} />}
-                    <span>{card.change}</span>
-                  </div>
-                </article>
-                );
-              })}
-            </div>
-
+            {/* Monthly Sales Chart */}
             <article className="dashboard-card sales-card">
               <div className="dashboard-card-header">
                 <div>
-                  <h2>Monthly Sales</h2>
-                  <p>Overview of monthly activity</p>
+                  <h2>Monthly Bookings</h2>
+                  <p>Overview of monthly booking activity</p>
                 </div>
-                <button type="button" className="ghost-icon-btn" aria-label="More options">
+                <button
+                  type="button"
+                  className="ghost-icon-btn"
+                  aria-label="More options"
+                >
                   <MoreVertical size={18} />
                 </button>
               </div>
@@ -150,7 +288,9 @@ export default function DashboardPage() {
                   <div key={item.month} className="sales-bar-group">
                     <div
                       className="sales-bar"
-                      style={{ height: `${Math.max(36, (item.value / 400) * 100)}%` }}
+                      style={{
+                        height: `${Math.max(36, (item.value / 400) * 100)}%`,
+                      }}
                     />
                     <span>{item.month}</span>
                   </div>
@@ -158,14 +298,17 @@ export default function DashboardPage() {
               </div>
             </article>
 
+            {/* Statistics */}
             <article className="dashboard-card statistics-card">
               <div className="dashboard-card-header">
                 <div>
                   <h2>Statistics</h2>
-                  <p>Target you&apos;ve set for each month</p>
+                  <p>Live system overview</p>
                 </div>
                 <div className="period-switch">
-                  <button type="button" className="active">Monthly</button>
+                  <button type="button" className="active">
+                    Monthly
+                  </button>
                   <button type="button">Quarterly</button>
                   <button type="button">Annually</button>
                 </div>
@@ -174,9 +317,11 @@ export default function DashboardPage() {
               <div className="statistics-content">
                 <div className="statistics-copy">
                   <div className="statistics-big-number">
-                    {loading ? '...' : counts.routes.toLocaleString()}
+                    {loading ? '...' : counts.bookings.toLocaleString()}
                   </div>
-                  <p>Active transport routes are currently tracked in your backend dashboard.</p>
+                  <p>
+                    Total bookings recorded across all active trips and routes.
+                  </p>
                   <div className="statistics-mini-grid">
                     {statsTiles.map((tile) => (
                       <div key={tile.label} className="statistics-tile">
@@ -201,20 +346,30 @@ export default function DashboardPage() {
             </article>
           </div>
 
+          {/* ── RIGHT COLUMN ── */}
           <aside className="dashboard-secondary">
+            {/* Monthly Target Gauge */}
             <article className="dashboard-card target-card">
               <div className="dashboard-card-header">
                 <div>
                   <h2>Monthly Target</h2>
                   <p>Target you&apos;ve set for each month</p>
                 </div>
-                <button type="button" className="ghost-icon-btn" aria-label="More options">
+                <button
+                  type="button"
+                  className="ghost-icon-btn"
+                  aria-label="More options"
+                >
                   <MoreVertical size={18} />
                 </button>
               </div>
 
               <div className="target-gauge">
-                <svg viewBox="0 0 220 150" className="target-gauge-svg" aria-hidden="true">
+                <svg
+                  viewBox="0 0 220 150"
+                  className="target-gauge-svg"
+                  aria-hidden="true"
+                >
                   <path
                     d="M30 130 A80 80 0 0 1 190 130"
                     fill="none"
@@ -239,8 +394,9 @@ export default function DashboardPage() {
               </div>
 
               <p className="target-description">
-                You earn ${Math.max(1500, counts.routes * 328)} today, it&apos;s higher than last month.
-                Keep up your good work.
+                You have {loading ? '...' : counts.bookings.toLocaleString()}{' '}
+                bookings and {loading ? '...' : counts.trips.toLocaleString()}{' '}
+                active trips this month.
               </p>
 
               <div className="target-stats">
@@ -253,6 +409,7 @@ export default function DashboardPage() {
               </div>
             </article>
 
+            {/* Network Summary */}
             <article className="dashboard-card activity-card">
               <div className="dashboard-card-header">
                 <div>
@@ -265,11 +422,45 @@ export default function DashboardPage() {
               <div className="activity-list">
                 <div className="activity-item">
                   <div className="activity-badge blue">
-                    <Building2 size={16} />
+                    <CalendarCheck size={16} />
                   </div>
                   <div>
-                    <strong>{loading ? '...' : counts.cities.toLocaleString()} connected cities</strong>
-                    <p>Coverage across your configured route endpoints.</p>
+                    <strong>
+                      {loading ? '...' : counts.bookings.toLocaleString()}{' '}
+                      bookings
+                    </strong>
+                    <p>Total customer bookings in the system.</p>
+                  </div>
+                </div>
+
+                <div className="activity-item">
+                  <div
+                    className="activity-badge"
+                    style={{ background: '#fff7ed', color: '#f79009' }}
+                  >
+                    <Navigation size={16} />
+                  </div>
+                  <div>
+                    <strong>
+                      {loading ? '...' : counts.trips.toLocaleString()} trips
+                    </strong>
+                    <p>Active and scheduled trips across all routes.</p>
+                  </div>
+                </div>
+
+                <div className="activity-item">
+                  <div
+                    className="activity-badge"
+                    style={{ background: '#ecfdf3', color: '#12b76a' }}
+                  >
+                    <UserCheck size={16} />
+                  </div>
+                  <div>
+                    <strong>
+                      {loading ? '...' : counts.drivers.toLocaleString()}{' '}
+                      drivers
+                    </strong>
+                    <p>Registered drivers available for assignment.</p>
                   </div>
                 </div>
 
@@ -278,7 +469,10 @@ export default function DashboardPage() {
                     <Truck size={16} />
                   </div>
                   <div>
-                    <strong>{loading ? '...' : counts.vehicles.toLocaleString()} registered vehicles</strong>
+                    <strong>
+                      {loading ? '...' : counts.vehicles.toLocaleString()}{' '}
+                      vehicles
+                    </strong>
                     <p>Fleet records available for assignment and tracking.</p>
                   </div>
                 </div>
@@ -288,8 +482,37 @@ export default function DashboardPage() {
                     <Map size={16} />
                   </div>
                   <div>
-                    <strong>{loading ? '...' : counts.routes.toLocaleString()} active routes</strong>
-                    <p>Configured origin and destination links across the system.</p>
+                    <strong>
+                      {loading ? '...' : counts.routes.toLocaleString()} routes
+                    </strong>
+                    <p>Configured origin and destination links.</p>
+                  </div>
+                </div>
+
+                <div className="activity-item">
+                  <div className="activity-badge blue">
+                    <Building2 size={16} />
+                  </div>
+                  <div>
+                    <strong>
+                      {loading ? '...' : counts.cities.toLocaleString()} cities
+                    </strong>
+                    <p>Coverage across configured route endpoints.</p>
+                  </div>
+                </div>
+
+                <div className="activity-item">
+                  <div
+                    className="activity-badge"
+                    style={{ background: '#fef3f2', color: '#f04438' }}
+                  >
+                    <Users size={16} />
+                  </div>
+                  <div>
+                    <strong>
+                      {loading ? '...' : counts.users.toLocaleString()} users
+                    </strong>
+                    <p>Registered customer accounts in the system.</p>
                   </div>
                 </div>
               </div>
